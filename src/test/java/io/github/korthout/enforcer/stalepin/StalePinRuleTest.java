@@ -1,5 +1,9 @@
 package io.github.korthout.enforcer.stalepin;
 
+import static io.github.korthout.enforcer.stalepin.Fixtures.directDependency;
+import static io.github.korthout.enforcer.stalepin.Fixtures.node;
+import static io.github.korthout.enforcer.stalepin.Fixtures.pin;
+import static io.github.korthout.enforcer.stalepin.Fixtures.project;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -19,18 +23,12 @@ import org.apache.maven.enforcer.rule.api.EnforcerRuleError;
 import org.apache.maven.enforcer.rule.api.EnforcerRuleException;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.model.Dependency;
-import org.apache.maven.model.DependencyManagement;
-import org.apache.maven.model.InputLocation;
-import org.apache.maven.model.InputSource;
-import org.apache.maven.model.Model;
 import org.apache.maven.project.MavenProject;
 import org.eclipse.aether.DefaultRepositorySystemSession;
 import org.eclipse.aether.RepositorySystem;
-import org.eclipse.aether.artifact.DefaultArtifact;
 import org.eclipse.aether.collection.CollectRequest;
 import org.eclipse.aether.collection.CollectResult;
 import org.eclipse.aether.collection.DependencyCollectionException;
-import org.eclipse.aether.graph.DefaultDependencyNode;
 import org.eclipse.aether.graph.DependencyNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -184,49 +182,5 @@ class StalePinRuleTest {
               DependencyNode root = node("com.acme", "graph-root", "1.0.0", graph);
               return new CollectResult(request).setRoot(root);
             });
-  }
-
-  private static MavenProject project(String modelId, Dependency... pins) {
-    String[] coordinates = modelId.split(":");
-    Model model = new Model();
-    model.setGroupId(coordinates[0]);
-    model.setArtifactId(coordinates[1]);
-    model.setVersion(coordinates[2]);
-    if (pins.length > 0) {
-      DependencyManagement dependencyManagement = new DependencyManagement();
-      for (Dependency pin : pins) {
-        dependencyManagement.addDependency(pin);
-      }
-      model.setDependencyManagement(dependencyManagement);
-    }
-    return new MavenProject(model);
-  }
-
-  /** A dependencyManagement entry whose declaration location points at the given model. */
-  private static Dependency pin(
-      String groupId, String artifactId, String version, String declaringModelId) {
-    Dependency dependency = directDependency(groupId, artifactId, version);
-    InputSource source = new InputSource();
-    source.setModelId(declaringModelId);
-    dependency.setLocation("", new InputLocation(1, 1, source));
-    return dependency;
-  }
-
-  private static Dependency directDependency(String groupId, String artifactId, String version) {
-    Dependency dependency = new Dependency();
-    dependency.setGroupId(groupId);
-    dependency.setArtifactId(artifactId);
-    dependency.setVersion(version);
-    return dependency;
-  }
-
-  private static DependencyNode node(
-      String groupId, String artifactId, String version, DependencyNode... children) {
-    DefaultDependencyNode node =
-        new DefaultDependencyNode(
-            new org.eclipse.aether.graph.Dependency(
-                new DefaultArtifact(groupId + ":" + artifactId + ":" + version), "compile"));
-    node.setChildren(new ArrayList<>(Arrays.asList(children)));
-    return node;
   }
 }
