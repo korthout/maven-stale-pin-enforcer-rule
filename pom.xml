@@ -45,6 +45,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>17</maven.compiler.release>
 
+    <sisu-maven-plugin.version>1.0.1</sisu-maven-plugin.version>
     <spotless-maven-plugin.version>3.8.0</spotless-maven-plugin.version>
     <maven-enforcer-plugin.version>3.6.3</maven-enforcer-plugin.version>
     <extra-enforcer-rules.version>1.12.0</extra-enforcer-rules.version>
@@ -55,7 +56,7 @@
 
     <enforcer-api.version>3.6.3</enforcer-api.version>
     <maven-core.version>3.9.16</maven-core.version>
-    <jakarta-inject-api.version>2.0.1</jakarta-inject-api.version>
+    <javax-inject.version>1</javax-inject.version>
     <junit-jupiter.version>6.1.2</junit-jupiter.version>
     <mockito-core.version>5.23.0</mockito-core.version>
   </properties>
@@ -74,9 +75,11 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>jakarta.inject</groupId>
-      <artifactId>jakarta.inject-api</artifactId>
-      <version>${jakarta-inject-api.version}</version>
+      <!-- javax.inject (not jakarta.inject): maven-enforcer 3.x and the sisu index
+           tooling still discover and inject rules through the javax annotations. -->
+      <groupId>javax.inject</groupId>
+      <artifactId>javax.inject</artifactId>
+      <version>${javax-inject.version}</version>
       <scope>provided</scope>
     </dependency>
 
@@ -105,6 +108,21 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.5.6</version>
+      </plugin>
+      <plugin>
+        <!-- Generates the META-INF/sisu index that lets the maven-enforcer-plugin
+             discover the @Named rule in this jar. -->
+        <groupId>org.eclipse.sisu</groupId>
+        <artifactId>sisu-maven-plugin</artifactId>
+        <version>${sisu-maven-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>generate-sisu-index</id>
+            <goals>
+              <goal>main-index</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
