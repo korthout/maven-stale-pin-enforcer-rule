@@ -9,3 +9,7 @@ Capture learnings often: whenever a decision is non-obvious, a mistake is correc
 ### Commits are for git archeology
 
 Commit titles max 72 chars, prefer <50. Explain all considerations in the body. Separate behavioral changes from structural/refactoring changes into distinct commits.
+
+### PRs follow `.github/PULL_REQUEST_TEMPLATE.md`
+
+Always fill in the repo's PR template structure (Description / Related issue) rather than an improvised format.
