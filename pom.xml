@@ -11,6 +11,35 @@
 
   <name>stale-pin-enforcer</name>
   <description>Detects Maven dependency management entries no longer needed by any dependency</description>
+  <url>https://github.com/korthout/maven-stale-pin-enforcer-rule</url>
+
+  <licenses>
+    <license>
+      <name>Apache-2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <id>korthout</id>
+      <name>Nico Korthout</name>
+      <url>https://github.com/korthout</url>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:https://github.com/korthout/maven-stale-pin-enforcer-rule.git</connection>
+    <developerConnection>scm:git:git@github.com:korthout/maven-stale-pin-enforcer-rule.git</developerConnection>
+    <url>https://github.com/korthout/maven-stale-pin-enforcer-rule</url>
+    <tag>HEAD</tag>
+  </scm>
+
+  <issueManagement>
+    <system>GitHub</system>
+    <url>https://github.com/korthout/maven-stale-pin-enforcer-rule/issues</url>
+  </issueManagement>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -19,6 +48,10 @@
     <spotless-maven-plugin.version>3.8.0</spotless-maven-plugin.version>
     <maven-enforcer-plugin.version>3.6.3</maven-enforcer-plugin.version>
     <extra-enforcer-rules.version>1.12.0</extra-enforcer-rules.version>
+    <maven-source-plugin.version>3.3.1</maven-source-plugin.version>
+    <maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
+    <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
+    <central-publishing-maven-plugin.version>0.11.0</central-publishing-maven-plugin.version>
 
     <enforcer-api.version>3.6.3</enforcer-api.version>
     <maven-core.version>3.9.16</maven-core.version>
@@ -102,6 +135,32 @@
         </executions>
       </plugin>
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <version>${maven-source-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>attach-sources</id>
+            <goals>
+              <goal>jar-no-fork</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <version>${maven-javadoc-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>attach-javadocs</id>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
         <groupId>com.diffplug.spotless</groupId>
         <artifactId>spotless-maven-plugin</artifactId>
         <version>${spotless-maven-plugin.version}</version>
@@ -121,4 +180,47 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <!-- Signs artifacts and deploys to Maven Central via the Central Publishing Portal.
+         Only meant for release builds: mvn -Prelease deploy -->
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>${maven-gpg-plugin.version}</version>
+            <configuration>
+              <!-- The Bouncy Castle signer reads the key and passphrase from the
+                   MAVEN_GPG_KEY and MAVEN_GPG_PASSPHRASE environment variables,
+                   so no gpg binary or keyring setup is needed in CI. -->
+              <signer>bc</signer>
+              <bestPractices>true</bestPractices>
+            </configuration>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <version>${central-publishing-maven-plugin.version}</version>
+            <extensions>true</extensions>
+            <configuration>
+              <publishingServerId>central</publishingServerId>
+              <autoPublish>true</autoPublish>
+              <waitUntil>published</waitUntil>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>
