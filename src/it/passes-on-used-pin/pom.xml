@@ -13,14 +13,21 @@
     <module>module-a</module>
   </modules>
 
-  <!-- This parent has no dependencies of its own; the pin is justified by module-a,
-       which pulls in slf4j-api transitively through slf4j-simple. The rule must look
-       across the whole reactor to see that. -->
+  <!-- This parent has no dependencies of its own; both pins are justified by module-a,
+       so the rule must look across the whole reactor to see that:
+       - slf4j-api is pulled in transitively through module-a's slf4j-simple dependency
+       - jul-to-slf4j is declared directly (without version) in module-a, the classic
+         parent-manages-the-version multi-module pattern -->
   <dependencyManagement>
     <dependencies>
       <dependency>
         <groupId>org.slf4j</groupId>
         <artifactId>slf4j-api</artifactId>
+        <version>2.0.17</version>
+      </dependency>
+      <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>jul-to-slf4j</artifactId>
         <version>2.0.17</version>
       </dependency>
     </dependencies>
