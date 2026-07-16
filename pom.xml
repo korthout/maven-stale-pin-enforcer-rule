@@ -10,7 +10,7 @@
   <packaging>jar</packaging>
 
   <name>stale-pin-enforcer</name>
-  <description>Detects Maven dependency management entries no longer needed by any dependency</description>
+  <description>Detects Maven dependency management entries that are stale or no longer settle a version conflict</description>
   <url>https://github.com/korthout/maven-stale-pin-enforcer-rule</url>
 
   <licenses>

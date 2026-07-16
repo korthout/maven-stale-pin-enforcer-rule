@@ -22,6 +22,10 @@ The rule must be annotated with `javax.inject.Named`: `sisu-maven-plugin:main-in
 
 `MavenProject.getArtifacts()` of sibling modules is empty when the rule runs at `validate`, so StalePinRule collects each reactor project's graph itself through the injected aether `RepositorySystem` and caches the reactor-wide result in resolver `SessionData` (one collection per build).
 
+### redundantPin sees requested versions via unmanaged, conflict-preserving graphs
+
+RedundantPinRule collects each reactor project's graph without request-level managed dependencies and with the resolver session's dependency graph transformer removed, so no conflict resolution picks a winner and every naturally requested version stays visible. Two guards prevent false positives: pins whose coordinates appear as versionless direct dependencies in any raw (original) model are version management in active use, and pins that differ from the single requested version are kept (possibly a deliberate override, e.g. a CVE fix).
+
 ### Pins are filtered by InputLocation
 
 Effective-model `dependencyManagement` includes inherited entries and entries flattened in from imported BOMs. StalePinRule only checks entries whose `InputLocation` source modelId is the current project, so inherited pins are checked once (in the declaring module) and BOM contents are never flagged.

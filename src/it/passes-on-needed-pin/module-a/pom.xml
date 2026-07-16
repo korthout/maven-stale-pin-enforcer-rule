@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.github.korthout.it</groupId>
+    <artifactId>passes-on-needed-pin</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>passes-on-needed-pin-module-a</artifactId>
+
+  <dependencies>
+    <!-- requests slf4j-api 2.0.17 transitively ... -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-simple</artifactId>
+      <version>2.0.17</version>
+    </dependency>
+    <!-- ... while this requests slf4j-api 2.0.12: the parent's pin settles the conflict -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>jcl-over-slf4j</artifactId>
+      <version>2.0.12</version>
+    </dependency>
+    <!-- requests junit-jupiter-api 5.10.2 transitively, which the parent's pin overrides -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.10.2</version>
+    </dependency>
+    <!-- direct dependency with the version managed by the parent's dependencyManagement -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>jul-to-slf4j</artifactId>
+    </dependency>
+  </dependencies>
+</project>
