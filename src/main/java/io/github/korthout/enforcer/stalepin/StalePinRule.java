@@ -11,18 +11,18 @@ import org.apache.maven.enforcer.rule.api.EnforcerRuleException;
 @Named("stalePin")
 public class StalePinRule extends AbstractEnforcerRule {
 
-    // TODO: implement stale-pin detection (see issue #11): collect the pins declared in
-    // dependencyManagement, collect the dependencies actually declared (directly and transitively,
-    // where relevant) by the project, and report any pin whose groupId/artifactId is no longer
-    // referenced by a declared dependency.
+  // TODO: implement stale-pin detection (see issue #11): collect the pins declared in
+  // dependencyManagement, collect the dependencies actually declared (directly and transitively,
+  // where relevant) by the project, and report any pin whose groupId/artifactId is no longer
+  // referenced by a declared dependency.
 
-    // NOTE: detecting stale pins across a multi-module reactor build may require visibility into
-    // the reactor-wide MavenSession (e.g. to see dependencies declared in sibling modules). Whether
-    // and how to obtain that session is a design question deferred to the detection-algorithm work
-    // in issue #11; this stub does not wire up a session.
+  // NOTE: detecting stale pins across a multi-module reactor build may require visibility into
+  // the reactor-wide MavenSession (e.g. to see dependencies declared in sibling modules). Whether
+  // and how to obtain that session is a design question deferred to the detection-algorithm work
+  // in issue #11; this stub does not wire up a session.
 
-    @Override
-    public void execute() throws EnforcerRuleException {
-        getLog().info("not yet implemented");
-    }
+  @Override
+  public void execute() throws EnforcerRuleException {
+    getLog().info("not yet implemented");
+  }
 }

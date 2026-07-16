@@ -11,14 +11,14 @@ import org.junit.jupiter.api.Test;
 
 class StalePinRuleTest {
 
-    @Test
-    void executeCompletesAndLogsOnce() {
-        AbstractEnforcerRule rule = new StalePinRule();
-        EnforcerLogger mockLog = mock(EnforcerLogger.class);
-        rule.setLog(mockLog);
+  @Test
+  void executeCompletesAndLogsOnce() {
+    AbstractEnforcerRule rule = new StalePinRule();
+    EnforcerLogger mockLog = mock(EnforcerLogger.class);
+    rule.setLog(mockLog);
 
-        assertDoesNotThrow(rule::execute);
+    assertDoesNotThrow(rule::execute);
 
-        verify(mockLog, times(1)).info("not yet implemented");
-    }
+    verify(mockLog, times(1)).info("not yet implemented");
+  }
 }
