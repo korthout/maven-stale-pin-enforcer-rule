@@ -1,0 +1,37 @@
+# Deploys to Maven Central via the Central Publishing Portal when a v* tag is pushed.
+#
+# Required repository secrets (placeholders, not yet configured):
+#   GPG_PRIVATE_KEY          ASCII-armored private key used to sign artifacts
+#   GPG_PASSPHRASE           passphrase of that key
+#   CENTRAL_TOKEN_USERNAME   username half of a Central Portal publishing token
+#   CENTRAL_TOKEN_PASSWORD   password half of a Central Portal publishing token
+#
+# The GPG key/passphrase are read by maven-gpg-plugin's Bouncy Castle signer
+# from MAVEN_GPG_KEY / MAVEN_GPG_PASSPHRASE. The portal token maps to the
+# `central` server id used by central-publishing-maven-plugin.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+          server-id: central
+          server-username: CENTRAL_TOKEN_USERNAME
+          server-password: CENTRAL_TOKEN_PASSWORD
+      - name: Deploy to Maven Central
+        run: mvn -B -Prelease deploy
+        env:
+          CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
+          CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
+          MAVEN_GPG_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
