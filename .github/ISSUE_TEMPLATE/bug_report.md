@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a problem with the stale-pin-enforcer-rule
+about: Report a problem with maven-stale-pin-enforcer-rule
 title: ''
 labels: bug
 assignees: ''
