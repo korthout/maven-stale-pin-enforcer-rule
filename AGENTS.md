@@ -29,3 +29,7 @@ RedundantPinRule collects each reactor project's graph without request-level man
 ### Pins are filtered by InputLocation
 
 Effective-model `dependencyManagement` includes inherited entries and entries flattened in from imported BOMs. StalePinRule only checks entries whose `InputLocation` source modelId is the current project, so inherited pins are checked once (in the declaring module) and BOM contents are never flagged.
+
+### InputLocation carries line AND column in real builds
+
+Maven core builds project models with location tracking on, and its model reader records line and column together, so a pin's `InputLocation` has both (verified end-to-end: the failing-pin ITs assert `at pom.xml:<line>:`). Failure messages still degrade gracefully — no location means no position suffix, and a column ≤ 0 would drop just the column.
