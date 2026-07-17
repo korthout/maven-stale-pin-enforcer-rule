@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.github.korthout.it</groupId>
+  <artifactId>passes-on-needed-pin</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+
+  <modules>
+    <module>module-a</module>
+  </modules>
+
+  <!-- Each pin here must pass the redundantPin rule for a different reason:
+       - slf4j-api still settles a conflict: module-a's slf4j-simple requests 2.0.17
+         while its jcl-over-slf4j requests 2.0.12
+       - junit-jupiter-api overrides the only requested version: module-a's junit-jupiter
+         requests 5.10.2, but the pin forces 5.11.4 (deliberate override, e.g. a CVE fix)
+       - jul-to-slf4j supplies the version of module-a's versionless direct dependency,
+         the classic parent-manages-the-version multi-module pattern -->
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-api</artifactId>
+        <version>2.0.17</version>
+      </dependency>
+      <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter-api</artifactId>
+        <version>5.11.4</version>
+      </dependency>
+      <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>jul-to-slf4j</artifactId>
+        <version>2.0.17</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>@maven-enforcer-plugin.version@</version>
+        <dependencies>
+          <dependency>
+            <groupId>@project.groupId@</groupId>
+            <artifactId>@project.artifactId@</artifactId>
+            <version>@project.version@</version>
+          </dependency>
+        </dependencies>
+        <executions>
+          <execution>
+            <id>pin-rules</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <stalePin/>
+                <redundantPin/>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

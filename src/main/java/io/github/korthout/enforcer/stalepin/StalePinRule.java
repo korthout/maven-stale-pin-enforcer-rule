@@ -1,23 +1,16 @@
 package io.github.korthout.enforcer.stalepin;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Named;
-import org.apache.maven.RepositoryUtils;
-import org.apache.maven.artifact.Artifact;
 import org.apache.maven.enforcer.rule.api.AbstractEnforcerRule;
 import org.apache.maven.enforcer.rule.api.EnforcerRuleError;
 import org.apache.maven.enforcer.rule.api.EnforcerRuleException;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.model.Dependency;
-import org.apache.maven.model.DependencyManagement;
-import org.apache.maven.model.InputLocation;
-import org.apache.maven.model.InputSource;
 import org.apache.maven.project.MavenProject;
 import org.eclipse.aether.RepositorySystem;
 import org.eclipse.aether.artifact.ArtifactTypeRegistry;
@@ -59,55 +52,31 @@ public class StalePinRule extends AbstractEnforcerRule {
   @Override
   public void execute() throws EnforcerRuleException {
     MavenProject project = session.getCurrentProject();
-    List<Dependency> pins = declaredPins(project);
+    List<Dependency> pins = Pins.declaredIn(project);
     if (pins.isEmpty()) {
       getLog().debug("No dependencyManagement entries declared in this POM, nothing to check");
       return;
     }
 
     Set<String> used = usedCoordinates();
-    List<Dependency> stale = pins.stream().filter(pin -> !used.contains(coordinate(pin))).toList();
+    List<Dependency> stale =
+        pins.stream().filter(pin -> !used.contains(Pins.coordinate(pin))).toList();
     getLog()
         .debug(
             "Checked %d pin(s) against %d used coordinate(s), found %d stale"
                 .formatted(pins.size(), used.size(), stale.size()));
 
     if (!stale.isEmpty()) {
-      throw new EnforcerRuleException(staleMessage(project, stale));
+      throw new EnforcerRuleException(
+          Pins.failureMessage(
+              project,
+              stale,
+              "stale",
+              List.of(
+                  "No dependency in this build resolves to these coordinates (directly or"
+                      + " transitively),",
+                  "so the pins have no effect. Remove them from dependencyManagement.")));
     }
-  }
-
-  /**
-   * Returns the {@code dependencyManagement} entries declared in the project's own POM file.
-   *
-   * <p>Works on the effective model (so properties in coordinates are interpolated), but uses
-   * Maven's input-location tracking to keep only entries whose declaration lives in this POM:
-   * entries inherited from a parent are checked when the rule runs in the declaring module, and
-   * entries contributed by an imported BOM are not pins the user wrote at all.
-   */
-  private List<Dependency> declaredPins(MavenProject project) {
-    DependencyManagement dependencyManagement = project.getModel().getDependencyManagement();
-    if (dependencyManagement == null) {
-      return List.of();
-    }
-    String modelId =
-        project.getGroupId() + ":" + project.getArtifactId() + ":" + project.getVersion();
-    return dependencyManagement.getDependencies().stream()
-        .filter(dependency -> !"import".equals(dependency.getScope()))
-        .filter(dependency -> declaredIn(dependency, modelId))
-        .toList();
-  }
-
-  private boolean declaredIn(Dependency dependency, String modelId) {
-    InputLocation location = dependency.getLocation("");
-    InputSource source = location == null ? null : location.getSource();
-    if (source == null) {
-      // Without location tracking we cannot tell where the entry comes from. Treat it as
-      // declared here rather than silently checking nothing; regular Maven builds always
-      // track locations, so this is a defensive fallback only.
-      return true;
-    }
-    return modelId.equals(source.getModelId());
   }
 
   /**
@@ -130,24 +99,7 @@ public class StalePinRule extends AbstractEnforcerRule {
 
   private void collectGraph(MavenProject project, Set<String> used) throws EnforcerRuleException {
     ArtifactTypeRegistry typeRegistry = session.getRepositorySession().getArtifactTypeRegistry();
-
-    CollectRequest request = new CollectRequest();
-    Artifact projectArtifact = project.getArtifact();
-    if (projectArtifact != null) {
-      request.setRootArtifact(RepositoryUtils.toArtifact(projectArtifact));
-    }
-    request.setDependencies(
-        project.getDependencies().stream()
-            .map(dependency -> RepositoryUtils.toDependency(dependency, typeRegistry))
-            .toList());
-    if (project.getDependencyManagement() != null) {
-      request.setManagedDependencies(
-          project.getDependencyManagement().getDependencies().stream()
-              .map(dependency -> RepositoryUtils.toDependency(dependency, typeRegistry))
-              .toList());
-    }
-    request.setRepositories(project.getRemoteProjectRepositories());
-
+    CollectRequest request = CollectRequests.managed(project, typeRegistry);
     try {
       DependencyNode root =
           repositorySystem.collectDependencies(session.getRepositorySession(), request).getRoot();
@@ -165,29 +117,5 @@ public class StalePinRule extends AbstractEnforcerRule {
     for (DependencyNode child : node.getChildren()) {
       addCoordinates(child, used, false);
     }
-  }
-
-  private static String coordinate(Dependency dependency) {
-    return dependency.getGroupId() + ":" + dependency.getArtifactId();
-  }
-
-  private static String staleMessage(MavenProject project, List<Dependency> stale) {
-    List<String> lines = new ArrayList<>();
-    lines.add(
-        "Found "
-            + stale.size()
-            + " stale dependencyManagement "
-            + (stale.size() == 1 ? "entry" : "entries")
-            + " in "
-            + project.getId()
-            + ":");
-    lines.addAll(
-        stale.stream()
-            .map(pin -> "  - " + coordinate(pin) + " (pinned to " + pin.getVersion() + ")")
-            .toList());
-    lines.add(
-        "No dependency in this build resolves to these coordinates (directly or transitively),");
-    lines.add("so the pins have no effect. Remove them from dependencyManagement.");
-    return lines.stream().collect(Collectors.joining(System.lineSeparator()));
   }
 }

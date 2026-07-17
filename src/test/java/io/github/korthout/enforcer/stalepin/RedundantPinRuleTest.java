@@ -6,6 +6,7 @@ import static io.github.korthout.enforcer.stalepin.Fixtures.pin;
 import static io.github.korthout.enforcer.stalepin.Fixtures.project;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -26,6 +27,7 @@ import org.apache.maven.model.Dependency;
 import org.apache.maven.project.MavenProject;
 import org.eclipse.aether.DefaultRepositorySystemSession;
 import org.eclipse.aether.RepositorySystem;
+import org.eclipse.aether.RepositorySystemSession;
 import org.eclipse.aether.collection.CollectRequest;
 import org.eclipse.aether.collection.CollectResult;
 import org.eclipse.aether.collection.DependencyCollectionException;
@@ -33,7 +35,7 @@ import org.eclipse.aether.graph.DependencyNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-class StalePinRuleTest {
+class RedundantPinRuleTest {
 
   private static final String PROJECT_MODEL_ID = "com.acme:app:1.0.0";
 
@@ -42,56 +44,66 @@ class StalePinRuleTest {
   private final DefaultRepositorySystemSession repositorySession =
       new DefaultRepositorySystemSession();
 
-  private StalePinRule rule;
+  private RedundantPinRule rule;
 
   @BeforeEach
   void setUp() {
     repositorySession.setArtifactTypeRegistry(typeId -> null);
+    // the build's session resolves conflicts; the rule must collect without doing so
+    repositorySession.setDependencyGraphTransformer((node, context) -> node);
     when(session.getRepositorySession()).thenReturn(repositorySession);
-    rule = new StalePinRule(session, repositorySystem);
+    rule = new RedundantPinRule(session, repositorySystem);
     rule.setLog(mock(EnforcerLogger.class));
   }
 
   @Test
-  void failsOnPinThatNoDependencyResolvesTo() throws Exception {
+  void failsWhenEveryDependencyRequestsThePinnedVersion() throws Exception {
     MavenProject project =
         project(PROJECT_MODEL_ID, pin("org.ow2.asm", "asm", "9.7.1", PROJECT_MODEL_ID));
     currentProjects(project);
-    graphForAnyProject(node("com.acme", "lib", "1.0.0", node("org.other", "thing", "2.0.0")));
+    graphForAnyProject(
+        node("com.acme", "lib-a", "1.0.0", node("org.ow2.asm", "asm", "9.7.1")),
+        node("com.acme", "lib-b", "1.0.0", node("org.ow2.asm", "asm", "9.7.1")));
 
     EnforcerRuleException exception = assertThrows(EnforcerRuleException.class, rule::execute);
 
+    assertTrue(exception.getMessage().contains("redundant"), exception.getMessage());
     assertTrue(exception.getMessage().contains("org.ow2.asm:asm"), exception.getMessage());
     assertTrue(exception.getMessage().contains("9.7.1"), exception.getMessage());
   }
 
   @Test
-  void passesWhenPinMatchesTransitiveDependency() throws Exception {
+  void passesWhenDependenciesStillRequestDifferentVersions() throws Exception {
     MavenProject project =
-        project(PROJECT_MODEL_ID, pin("org.ow2.asm", "asm", "9.7.1", PROJECT_MODEL_ID));
+        project(PROJECT_MODEL_ID, pin("org.ow2.asm", "asm", "9.10.1", PROJECT_MODEL_ID));
     currentProjects(project);
-    graphForAnyProject(node("com.acme", "lib", "1.0.0", node("org.ow2.asm", "asm", "9.7.1")));
+    graphForAnyProject(
+        node("com.acme", "lib-a", "1.0.0", node("org.ow2.asm", "asm", "9.7.1")),
+        node("com.acme", "lib-b", "1.0.0", node("org.ow2.asm", "asm", "9.10.1")));
 
     assertDoesNotThrow(rule::execute);
   }
 
   @Test
-  void passesWhenPinIsUsedOnlyBySiblingModule() throws Exception {
+  void passesWhenSiblingModulesRequestDifferentVersions() throws Exception {
     MavenProject current =
-        project(PROJECT_MODEL_ID, pin("org.ow2.asm", "asm", "9.7.1", PROJECT_MODEL_ID));
+        project(PROJECT_MODEL_ID, pin("org.ow2.asm", "asm", "9.10.1", PROJECT_MODEL_ID));
     MavenProject sibling = project("com.acme:sibling:1.0.0");
     sibling.getModel().addDependency(directDependency("com.acme", "sibling-dep", "1.0.0"));
     currentProjects(current, sibling);
 
-    // only the sibling declares dependencies; its graph (transitively) contains the pinned
-    // coordinates, while the current project's own graph is empty
+    // the current project's graph requests one version, the sibling's another: still a conflict
     when(repositorySystem.collectDependencies(any(), any(CollectRequest.class)))
         .thenAnswer(
             invocation -> {
               CollectRequest request = invocation.getArgument(1);
               DependencyNode root =
                   request.getDependencies().isEmpty()
-                      ? node("com.acme", "graph-root", "1.0.0")
+                      ? node(
+                          "com.acme",
+                          "graph-root",
+                          "1.0.0",
+                          node("com.acme", "lib-a", "1.0.0", node("org.ow2.asm", "asm", "9.7.1")))
                       : node(
                           "com.acme",
                           "graph-root",
@@ -100,11 +112,71 @@ class StalePinRuleTest {
                               "com.acme",
                               "sibling-dep",
                               "1.0.0",
-                              node("org.ow2.asm", "asm", "9.7.1")));
+                              node("org.ow2.asm", "asm", "9.10.1")));
               return new CollectResult(request).setRoot(root);
             });
 
     assertDoesNotThrow(rule::execute);
+  }
+
+  @Test
+  void passesWhenPinOverridesTheOnlyRequestedVersion() throws Exception {
+    MavenProject project =
+        project(PROJECT_MODEL_ID, pin("org.ow2.asm", "asm", "9.10.1", PROJECT_MODEL_ID));
+    currentProjects(project);
+    graphForAnyProject(node("com.acme", "lib", "1.0.0", node("org.ow2.asm", "asm", "9.7.1")));
+
+    // the pin forces a version nothing requests, which may be deliberate (e.g. a CVE fix)
+    assertDoesNotThrow(rule::execute);
+  }
+
+  @Test
+  void passesWhenNothingDependsOnThePinnedCoordinates() throws Exception {
+    MavenProject project =
+        project(PROJECT_MODEL_ID, pin("org.ow2.asm", "asm", "9.7.1", PROJECT_MODEL_ID));
+    currentProjects(project);
+    graphForAnyProject(node("com.acme", "lib", "1.0.0", node("org.other", "thing", "2.0.0")));
+
+    // an entirely unused pin is the stalePin rule's finding, not this rule's
+    assertDoesNotThrow(rule::execute);
+  }
+
+  @Test
+  void passesWhenPinManagesVersionlessDirectDependency() throws Exception {
+    MavenProject project =
+        project(PROJECT_MODEL_ID, pin("org.ow2.asm", "asm", "9.7.1", PROJECT_MODEL_ID));
+    Dependency versionless = directDependency("org.ow2.asm", "asm", null);
+    project.getOriginalModel().addDependency(versionless);
+    currentProjects(project);
+    // the effective direct dependency carries the pinned version, so the graph requests it
+    graphForAnyProject(node("org.ow2.asm", "asm", "9.7.1"));
+
+    assertDoesNotThrow(rule::execute);
+  }
+
+  @Test
+  void collectsWithoutPinsAndWithoutConflictResolution() throws Exception {
+    MavenProject project =
+        project(PROJECT_MODEL_ID, pin("org.ow2.asm", "asm", "9.7.1", PROJECT_MODEL_ID));
+    project.getModel().addDependency(directDependency("com.acme", "lib", "1.0.0"));
+    currentProjects(project);
+
+    List<CollectRequest> requests = new ArrayList<>();
+    List<RepositorySystemSession> sessions = new ArrayList<>();
+    when(repositorySystem.collectDependencies(any(), any(CollectRequest.class)))
+        .thenAnswer(
+            invocation -> {
+              sessions.add(invocation.getArgument(0));
+              CollectRequest request = invocation.getArgument(1);
+              requests.add(request);
+              return new CollectResult(request)
+                  .setRoot(node("com.acme", "lib", "1.0.0", node("org.ow2.asm", "asm", "9.7.1")));
+            });
+
+    assertThrows(EnforcerRuleException.class, rule::execute);
+
+    assertTrue(requests.get(0).getManagedDependencies().isEmpty());
+    assertNull(sessions.get(0).getDependencyGraphTransformer());
   }
 
   @Test
@@ -139,16 +211,16 @@ class StalePinRuleTest {
   }
 
   @Test
-  void collectsUsedCoordinatesOnlyOncePerBuild() throws Exception {
+  void collectsRequestedVersionsOnlyOncePerBuild() throws Exception {
     MavenProject project =
-        project(PROJECT_MODEL_ID, pin("org.ow2.asm", "asm", "9.7.1", PROJECT_MODEL_ID));
+        project(PROJECT_MODEL_ID, pin("org.ow2.asm", "asm", "9.10.1", PROJECT_MODEL_ID));
     currentProjects(project);
     graphForAnyProject(node("org.ow2.asm", "asm", "9.7.1"));
 
     assertDoesNotThrow(rule::execute);
     assertDoesNotThrow(rule::execute);
 
-    // the reactor-wide coordinate set is cached in the resolver session, so the single
+    // the reactor-wide requested versions are cached in the resolver session, so the single
     // reactor project's graph is collected exactly once even across executions
     verify(repositorySystem, times(1)).collectDependencies(any(), any(CollectRequest.class));
   }
