@@ -80,7 +80,7 @@ A stale pin fails the build with a message like:
 
 ```
 Found 1 stale dependencyManagement entry in com.example:app:1.0.0:
-  - org.ow2.asm:asm (pinned to 9.10.1) at pom.xml:42:19
+  - org.ow2.asm:asm (pinned to 9.10.1) at pom.xml:42:7
 No dependency in this build resolves to these coordinates (directly or transitively),
 so the pins have no effect. Remove them from dependencyManagement.
 ```
@@ -89,7 +89,7 @@ and a redundant pin with:
 
 ```
 Found 1 redundant dependencyManagement entry in com.example:app:1.0.0:
-  - org.ow2.asm:asm (pinned to 9.10.1) at pom.xml:42:19
+  - org.ow2.asm:asm (pinned to 9.10.1) at pom.xml:42:7
 Every dependency on these coordinates already requests the pinned version,
 so there is no version conflict left to settle. Remove them from dependencyManagement.
 ```

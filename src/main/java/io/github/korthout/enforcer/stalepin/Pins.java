@@ -74,12 +74,20 @@ final class Pins {
   }
 
   /**
+   * The parser has just consumed the {@code <dependency>} start tag when Maven's model reader
+   * records the entry's location, so the recorded column points one past the tag's closing {@code
+   * >} rather than at the element itself. Shifting back by the tag's length puts the column on the
+   * opening {@code <}, where a user (or editor jumping to line:column) expects it.
+   */
+  private static final int START_TAG_LENGTH = "<dependency>".length();
+
+  /**
    * The pin's position in its POM file, as {@code " at pom.xml:line"} or {@code " at
    * pom.xml:line:column"}, so users don't have to search a large dependencyManagement block for the
    * flagged coordinates. Empty when the model was built without location tracking (the same
    * defensive fallback as {@link #declaredIn}). Maven's model reader records line and column
-   * together, so the column is normally present, but it is checked separately in case a location
-   * carries only a line.
+   * together, so the column is normally present, but a recorded column that cannot lie behind a
+   * {@code <dependency>} start tag has unknown meaning and is omitted rather than misreported.
    */
   private static String position(Dependency pin) {
     InputLocation location = pin.getLocation("");
@@ -91,8 +99,9 @@ final class Pins {
             .append(fileName(location.getSource()))
             .append(':')
             .append(location.getLineNumber());
-    if (location.getColumnNumber() > 0) {
-      position.append(':').append(location.getColumnNumber());
+    int column = location.getColumnNumber() - START_TAG_LENGTH;
+    if (column > 0) {
+      position.append(':').append(column);
     }
     return position.toString();
   }
