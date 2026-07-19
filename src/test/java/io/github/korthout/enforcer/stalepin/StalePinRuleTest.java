@@ -5,6 +5,7 @@ import static io.github.korthout.enforcer.stalepin.Fixtures.node;
 import static io.github.korthout.enforcer.stalepin.Fixtures.pin;
 import static io.github.korthout.enforcer.stalepin.Fixtures.project;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -63,6 +64,73 @@ class StalePinRuleTest {
 
     assertTrue(exception.getMessage().contains("org.ow2.asm:asm"), exception.getMessage());
     assertTrue(exception.getMessage().contains("9.7.1"), exception.getMessage());
+  }
+
+  @Test
+  void messageIncludesPinPositionInPomFile() throws Exception {
+    // the parser records the position just past the <dependency> start tag: for an element
+    // starting at column 7 that is column 19, and the message must point back at column 7
+    Dependency pin = pin("org.ow2.asm", "asm", "9.7.1", PROJECT_MODEL_ID, 42, 19);
+    pin.getLocation("").getSource().setLocation("/workspace/app/pom.xml");
+    MavenProject project = project(PROJECT_MODEL_ID, pin);
+    currentProjects(project);
+    graphForAnyProject(node("org.other", "thing", "2.0.0"));
+
+    EnforcerRuleException exception = assertThrows(EnforcerRuleException.class, rule::execute);
+
+    assertTrue(
+        exception.getMessage().contains("org.ow2.asm:asm (pinned to 9.7.1) at pom.xml:42:7"),
+        exception.getMessage());
+  }
+
+  @Test
+  void messageOmitsColumnWhenNotTracked() throws Exception {
+    Dependency pin = pin("org.ow2.asm", "asm", "9.7.1", PROJECT_MODEL_ID, 42, -1);
+    MavenProject project = project(PROJECT_MODEL_ID, pin);
+    currentProjects(project);
+    graphForAnyProject(node("org.other", "thing", "2.0.0"));
+
+    EnforcerRuleException exception = assertThrows(EnforcerRuleException.class, rule::execute);
+
+    // the source carries no file path either, so the name falls back to pom.xml
+    assertTrue(
+        exception.getMessage().contains("org.ow2.asm:asm (pinned to 9.7.1) at pom.xml:42"),
+        exception.getMessage());
+    assertFalse(exception.getMessage().contains("pom.xml:42:"), exception.getMessage());
+  }
+
+  @Test
+  void messageOmitsColumnThatCannotFollowADependencyStartTag() throws Exception {
+    // a recorded column within the width of the <dependency> tag cannot be the position past
+    // its start tag, so its meaning is unknown and it must not be reported shifted
+    Dependency pin = pin("org.ow2.asm", "asm", "9.7.1", PROJECT_MODEL_ID, 42, 5);
+    MavenProject project = project(PROJECT_MODEL_ID, pin);
+    currentProjects(project);
+    graphForAnyProject(node("org.other", "thing", "2.0.0"));
+
+    EnforcerRuleException exception = assertThrows(EnforcerRuleException.class, rule::execute);
+
+    assertTrue(
+        exception.getMessage().contains("org.ow2.asm:asm (pinned to 9.7.1) at pom.xml:42"),
+        exception.getMessage());
+    assertFalse(exception.getMessage().contains("pom.xml:42:"), exception.getMessage());
+  }
+
+  @Test
+  void messageOmitsPositionWhenLocationIsNotTracked() throws Exception {
+    // without location tracking the pin has no InputLocation at all; declaredIn defensively
+    // still checks it, and the message simply reports it without a position
+    MavenProject project =
+        project(PROJECT_MODEL_ID, directDependency("org.ow2.asm", "asm", "9.7.1"));
+    currentProjects(project);
+    graphForAnyProject(node("org.other", "thing", "2.0.0"));
+
+    EnforcerRuleException exception = assertThrows(EnforcerRuleException.class, rule::execute);
+
+    assertTrue(
+        exception.getMessage().contains("org.ow2.asm:asm (pinned to 9.7.1)"),
+        exception.getMessage());
+    assertFalse(exception.getMessage().contains(" at "), exception.getMessage());
   }
 
   @Test

@@ -42,7 +42,8 @@ final class Pins {
 
   /**
    * Builds the failure message shared by the rules: a headline naming the finding and the project,
-   * one line per offending pin, and the rule's explanation of why the pins should go.
+   * one line per offending pin (with its position in the POM file when tracked), and the rule's
+   * explanation of why the pins should go.
    */
   static String failureMessage(
       MavenProject project, List<Dependency> pins, String finding, List<String> explanation) {
@@ -59,10 +60,65 @@ final class Pins {
             + ":");
     lines.addAll(
         pins.stream()
-            .map(pin -> "  - " + coordinate(pin) + " (pinned to " + pin.getVersion() + ")")
+            .map(
+                pin ->
+                    "  - "
+                        + coordinate(pin)
+                        + " (pinned to "
+                        + pin.getVersion()
+                        + ")"
+                        + position(pin))
             .toList());
     lines.addAll(explanation);
     return lines.stream().collect(Collectors.joining(System.lineSeparator()));
+  }
+
+  /**
+   * The parser has just consumed the {@code <dependency>} start tag when Maven's model reader
+   * records the entry's location, so the recorded column points one past the tag's closing {@code
+   * >} rather than at the element itself. Shifting back by the tag's length puts the column on the
+   * opening {@code <}, where a user (or editor jumping to line:column) expects it.
+   */
+  private static final int START_TAG_LENGTH = "<dependency>".length();
+
+  /**
+   * The pin's position in its POM file, as {@code " at pom.xml:line"} or {@code " at
+   * pom.xml:line:column"}, so users don't have to search a large dependencyManagement block for the
+   * flagged coordinates. Empty when the model was built without location tracking (the same
+   * defensive fallback as {@link #declaredIn}). Maven's model reader records line and column
+   * together, so the column is normally present, but a recorded column that cannot lie behind a
+   * {@code <dependency>} start tag has unknown meaning and is omitted rather than misreported.
+   */
+  private static String position(Dependency pin) {
+    InputLocation location = pin.getLocation("");
+    if (location == null || location.getLineNumber() < 1) {
+      return "";
+    }
+    StringBuilder position =
+        new StringBuilder(" at ")
+            .append(fileName(location.getSource()))
+            .append(':')
+            .append(location.getLineNumber());
+    int column = location.getColumnNumber() - START_TAG_LENGTH;
+    if (column > 0) {
+      position.append(':').append(column);
+    }
+    return position.toString();
+  }
+
+  /**
+   * The file name of the POM the location's source points at. {@link #declaredIn} guarantees the
+   * pins in a failure message live in the current project's own POM file, so the file name alone
+   * identifies the file; when the source carries no path, that file can only be the project's
+   * {@code pom.xml}.
+   */
+  private static String fileName(InputSource source) {
+    String path = source == null ? null : source.getLocation();
+    if (path == null || path.isEmpty()) {
+      return "pom.xml";
+    }
+    int separator = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+    return separator < 0 ? path : path.substring(separator + 1);
   }
 
   private static boolean isDeclaredIn(Dependency dependency, String modelId) {

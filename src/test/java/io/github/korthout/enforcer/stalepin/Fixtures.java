@@ -38,10 +38,21 @@ final class Fixtures {
   /** A dependencyManagement entry whose declaration location points at the given model. */
   static Dependency pin(
       String groupId, String artifactId, String version, String declaringModelId) {
+    return pin(groupId, artifactId, version, declaringModelId, 1, 1);
+  }
+
+  /** Like {@link #pin(String, String, String, String)} but declared at the given position. */
+  static Dependency pin(
+      String groupId,
+      String artifactId,
+      String version,
+      String declaringModelId,
+      int line,
+      int column) {
     Dependency dependency = directDependency(groupId, artifactId, version);
     InputSource source = new InputSource();
     source.setModelId(declaringModelId);
-    dependency.setLocation("", new InputLocation(1, 1, source));
+    dependency.setLocation("", new InputLocation(line, column, source));
     return dependency;
   }
 
