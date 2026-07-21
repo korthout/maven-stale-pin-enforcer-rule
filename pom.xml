@@ -60,7 +60,27 @@
     <javax-inject.version>1</javax-inject.version>
     <junit-jupiter.version>6.1.2</junit-jupiter.version>
     <mockito-core.version>5.23.0</mockito-core.version>
+    <byte-buddy.version>1.18.11</byte-buddy.version>
   </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <!-- Override of mockito's bundled byte-buddy (1.17.x tops out at Java 25):
+           1.18.x knows the newer class file versions, so the tests also run on
+           JDKs beyond our release targets. The artifact itself stays on
+           maven.compiler.release regardless of the JDK that builds it. -->
+      <dependency>
+        <groupId>net.bytebuddy</groupId>
+        <artifactId>byte-buddy</artifactId>
+        <version>${byte-buddy.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>net.bytebuddy</groupId>
+        <artifactId>byte-buddy-agent</artifactId>
+        <version>${byte-buddy.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <dependencies>
     <dependency>
@@ -148,6 +168,13 @@
                 <enforceBytecodeVersion>
                   <maxJdkVersion>17</maxJdkVersion>
                 </enforceBytecodeVersion>
+                <requireJavaVersion>
+                  <!-- Deliberately no upper bound: any newer JDK may build this
+                       project. maven.compiler.release keeps the artifact itself
+                       on the Java 17 baseline. -->
+                  <version>[17,)</version>
+                  <message>Building requires JDK 17 or newer.</message>
+                </requireJavaVersion>
               </rules>
             </configuration>
           </execution>

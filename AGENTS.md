@@ -33,3 +33,6 @@ Effective-model `dependencyManagement` includes inherited entries and entries fl
 ### InputLocation carries line AND column, but the column points past the start tag
 
 Maven core builds project models with location tracking on, and its model reader records line and column together — but it records them after consuming the `<dependency>` start tag, so the column points one past the tag's `>` (e.g. 19 for an element starting at column 7), not at the element. `Pins.position` shifts the column back by `"<dependency>".length()` to land on the opening `<`; the failing-pin ITs assert the exact shifted `at pom.xml:<line>:<column>` end-to-end. Failure messages still degrade gracefully — no location means no position suffix, and a column that cannot lie behind a start tag (≤ 12) is dropped rather than misreported.
+### Build floor is Java 17, ceiling is deliberate none
+
+The artifact targets Java 17/21 runtimes via `maven.compiler.release=17` (safe to cross-compile from any newer JDK), so the build must never cap the JDK. The only thing that broke newer JDKs was mockito's bundled byte-buddy: 1.17.x rejects class files beyond Java 25, and even the latest mockito still ships it, so `dependencyManagement` pins byte-buddy(+agent) 1.18.x. When a new JDK GA lands, bump the CI matrix's newest entry and, if tests fail, the byte-buddy pin.
