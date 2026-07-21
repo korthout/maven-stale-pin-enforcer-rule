@@ -1,4 +1,6 @@
 # Deploys to Maven Central via the Central Publishing Portal when a v* tag is pushed.
+# The released version is taken from the tag (v0.1.0 releases 0.1.0), so the POM on
+# main permanently stays at a -SNAPSHOT version and needs no release commits.
 #
 # Required repository secrets (placeholders, not yet configured):
 #   GPG_PRIVATE_KEY          ASCII-armored private key used to sign artifacts
@@ -28,6 +30,8 @@ jobs:
           server-id: central
           server-username: CENTRAL_TOKEN_USERNAME
           server-password: CENTRAL_TOKEN_PASSWORD
+      - name: Set version from tag
+        run: mvn -B org.codehaus.mojo:versions-maven-plugin:2.18.0:set -DnewVersion="${GITHUB_REF_NAME#v}" -DgenerateBackupPoms=false
       - name: Deploy to Maven Central
         run: mvn -B -Prelease deploy
         env:
