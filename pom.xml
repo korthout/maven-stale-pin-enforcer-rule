@@ -59,7 +59,6 @@
     <maven-core.version>3.9.16</maven-core.version>
     <javax-inject.version>1</javax-inject.version>
     <junit-jupiter.version>6.1.2</junit-jupiter.version>
-    <mockito-core.version>5.23.0</mockito-core.version>
   </properties>
 
   <dependencies>
@@ -88,12 +87,6 @@
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
       <version>${junit-jupiter.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.mockito</groupId>
-      <artifactId>mockito-core</artifactId>
-      <version>${mockito-core.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -148,6 +141,13 @@
                 <enforceBytecodeVersion>
                   <maxJdkVersion>17</maxJdkVersion>
                 </enforceBytecodeVersion>
+                <requireJavaVersion>
+                  <!-- Deliberately no upper bound: any newer JDK may build this
+                       project. maven.compiler.release keeps the artifact itself
+                       on the Java 17 baseline. -->
+                  <version>[17,)</version>
+                  <message>Building requires JDK 17 or newer.</message>
+                </requireJavaVersion>
               </rules>
             </configuration>
           </execution>

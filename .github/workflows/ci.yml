@@ -11,7 +11,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [17, 21]
+        # 17 and 21 are the supported release targets; the newest GA JDK is
+        # included so contributors can build with whatever JDK they have locally.
+        java: [17, 21, 26]
     name: JDK ${{ matrix.java }}
     steps:
       - uses: actions/checkout@v4

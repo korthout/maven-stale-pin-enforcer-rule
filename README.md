@@ -136,6 +136,9 @@ mvn verify
 runs the unit tests, formatting check (`mvn spotless:apply` fixes violations), and the
 integration tests under `src/it`, which build fixture projects against the freshly built rule.
 
+Any JDK 17 or newer can build the project; the released artifact always targets Java 17
+bytecode regardless of the JDK used to build it.
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) for more.
 
 ## License

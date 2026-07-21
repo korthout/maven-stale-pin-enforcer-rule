@@ -5,29 +5,21 @@ import static io.github.korthout.enforcer.stalepin.Fixtures.node;
 import static io.github.korthout.enforcer.stalepin.Fixtures.pin;
 import static io.github.korthout.enforcer.stalepin.Fixtures.project;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import org.apache.maven.enforcer.rule.api.EnforcerLogger;
 import org.apache.maven.enforcer.rule.api.EnforcerRuleError;
 import org.apache.maven.enforcer.rule.api.EnforcerRuleException;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.model.Dependency;
 import org.apache.maven.project.MavenProject;
 import org.eclipse.aether.DefaultRepositorySystemSession;
-import org.eclipse.aether.RepositorySystem;
-import org.eclipse.aether.RepositorySystemSession;
 import org.eclipse.aether.collection.CollectRequest;
 import org.eclipse.aether.collection.CollectResult;
 import org.eclipse.aether.collection.DependencyCollectionException;
@@ -39,10 +31,10 @@ class RedundantPinRuleTest {
 
   private static final String PROJECT_MODEL_ID = "com.acme:app:1.0.0";
 
-  private final MavenSession session = mock(MavenSession.class);
-  private final RepositorySystem repositorySystem = mock(RepositorySystem.class);
   private final DefaultRepositorySystemSession repositorySession =
       new DefaultRepositorySystemSession();
+  private final MavenSession session = Fixtures.session(repositorySession);
+  private final FakeRepositorySystem repositorySystem = new FakeRepositorySystem();
 
   private RedundantPinRule rule;
 
@@ -51,9 +43,8 @@ class RedundantPinRuleTest {
     repositorySession.setArtifactTypeRegistry(typeId -> null);
     // the build's session resolves conflicts; the rule must collect without doing so
     repositorySession.setDependencyGraphTransformer((node, context) -> node);
-    when(session.getRepositorySession()).thenReturn(repositorySession);
     rule = new RedundantPinRule(session, repositorySystem);
-    rule.setLog(mock(EnforcerLogger.class));
+    rule.setLog(new NoopEnforcerLogger());
   }
 
   @Test
@@ -93,28 +84,26 @@ class RedundantPinRuleTest {
     currentProjects(current, sibling);
 
     // the current project's graph requests one version, the sibling's another: still a conflict
-    when(repositorySystem.collectDependencies(any(), any(CollectRequest.class)))
-        .thenAnswer(
-            invocation -> {
-              CollectRequest request = invocation.getArgument(1);
-              DependencyNode root =
-                  request.getDependencies().isEmpty()
-                      ? node(
+    repositorySystem.onCollectDependencies(
+        (repoSession, request) -> {
+          DependencyNode root =
+              request.getDependencies().isEmpty()
+                  ? node(
+                      "com.acme",
+                      "graph-root",
+                      "1.0.0",
+                      node("com.acme", "lib-a", "1.0.0", node("org.ow2.asm", "asm", "9.7.1")))
+                  : node(
+                      "com.acme",
+                      "graph-root",
+                      "1.0.0",
+                      node(
                           "com.acme",
-                          "graph-root",
+                          "sibling-dep",
                           "1.0.0",
-                          node("com.acme", "lib-a", "1.0.0", node("org.ow2.asm", "asm", "9.7.1")))
-                      : node(
-                          "com.acme",
-                          "graph-root",
-                          "1.0.0",
-                          node(
-                              "com.acme",
-                              "sibling-dep",
-                              "1.0.0",
-                              node("org.ow2.asm", "asm", "9.10.1")));
-              return new CollectResult(request).setRoot(root);
-            });
+                          node("org.ow2.asm", "asm", "9.10.1")));
+          return new CollectResult(request).setRoot(root);
+        });
 
     assertDoesNotThrow(rule::execute);
   }
@@ -161,22 +150,15 @@ class RedundantPinRuleTest {
     project.getModel().addDependency(directDependency("com.acme", "lib", "1.0.0"));
     currentProjects(project);
 
-    List<CollectRequest> requests = new ArrayList<>();
-    List<RepositorySystemSession> sessions = new ArrayList<>();
-    when(repositorySystem.collectDependencies(any(), any(CollectRequest.class)))
-        .thenAnswer(
-            invocation -> {
-              sessions.add(invocation.getArgument(0));
-              CollectRequest request = invocation.getArgument(1);
-              requests.add(request);
-              return new CollectResult(request)
-                  .setRoot(node("com.acme", "lib", "1.0.0", node("org.ow2.asm", "asm", "9.7.1")));
-            });
+    repositorySystem.onCollectDependencies(
+        (repoSession, request) ->
+            new CollectResult(request)
+                .setRoot(node("com.acme", "lib", "1.0.0", node("org.ow2.asm", "asm", "9.7.1"))));
 
     assertThrows(EnforcerRuleException.class, rule::execute);
 
-    assertTrue(requests.get(0).getManagedDependencies().isEmpty());
-    assertNull(sessions.get(0).getDependencyGraphTransformer());
+    assertTrue(repositorySystem.collectedRequests().get(0).getManagedDependencies().isEmpty());
+    assertNull(repositorySystem.collectedSessions().get(0).getDependencyGraphTransformer());
   }
 
   @Test
@@ -186,7 +168,7 @@ class RedundantPinRuleTest {
     currentProjects(project);
 
     assertDoesNotThrow(rule::execute);
-    verifyNoInteractions(repositorySystem);
+    assertTrue(repositorySystem.collectedRequests().isEmpty());
   }
 
   @Test
@@ -198,7 +180,7 @@ class RedundantPinRuleTest {
     currentProjects(project);
 
     assertDoesNotThrow(rule::execute);
-    verifyNoInteractions(repositorySystem);
+    assertTrue(repositorySystem.collectedRequests().isEmpty());
   }
 
   @Test
@@ -207,7 +189,7 @@ class RedundantPinRuleTest {
     currentProjects(project);
 
     assertDoesNotThrow(rule::execute);
-    verifyNoInteractions(repositorySystem);
+    assertTrue(repositorySystem.collectedRequests().isEmpty());
   }
 
   @Test
@@ -222,7 +204,7 @@ class RedundantPinRuleTest {
 
     // the reactor-wide requested versions are cached in the resolver session, so the single
     // reactor project's graph is collected exactly once even across executions
-    verify(repositorySystem, times(1)).collectDependencies(any(), any(CollectRequest.class));
+    assertEquals(1, repositorySystem.collectedRequests().size());
   }
 
   @Test
@@ -230,8 +212,10 @@ class RedundantPinRuleTest {
     MavenProject project =
         project(PROJECT_MODEL_ID, pin("org.ow2.asm", "asm", "9.7.1", PROJECT_MODEL_ID));
     currentProjects(project);
-    when(repositorySystem.collectDependencies(any(), any(CollectRequest.class)))
-        .thenThrow(new DependencyCollectionException(new CollectResult(new CollectRequest())));
+    repositorySystem.onCollectDependencies(
+        (repoSession, request) -> {
+          throw new DependencyCollectionException(new CollectResult(new CollectRequest()));
+        });
 
     EnforcerRuleException exception = assertThrows(EnforcerRuleException.class, rule::execute);
 
@@ -239,20 +223,15 @@ class RedundantPinRuleTest {
   }
 
   private void currentProjects(MavenProject current, MavenProject... siblings) {
-    when(session.getCurrentProject()).thenReturn(current);
     List<MavenProject> projects = new ArrayList<>();
     projects.add(current);
     projects.addAll(Arrays.asList(siblings));
-    when(session.getProjects()).thenReturn(projects);
+    session.setProjects(projects); // also makes the first project the current one
   }
 
-  private void graphForAnyProject(DependencyNode... graph) throws DependencyCollectionException {
-    when(repositorySystem.collectDependencies(any(), any(CollectRequest.class)))
-        .thenAnswer(
-            invocation -> {
-              CollectRequest request = invocation.getArgument(1);
-              DependencyNode root = node("com.acme", "graph-root", "1.0.0", graph);
-              return new CollectResult(request).setRoot(root);
-            });
+  private void graphForAnyProject(DependencyNode... graph) {
+    repositorySystem.onCollectDependencies(
+        (repoSession, request) ->
+            new CollectResult(request).setRoot(node("com.acme", "graph-root", "1.0.0", graph)));
   }
 }
