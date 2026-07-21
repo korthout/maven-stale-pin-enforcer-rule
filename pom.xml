@@ -59,28 +59,7 @@
     <maven-core.version>3.9.16</maven-core.version>
     <javax-inject.version>1</javax-inject.version>
     <junit-jupiter.version>6.1.2</junit-jupiter.version>
-    <mockito-core.version>5.23.0</mockito-core.version>
-    <byte-buddy.version>1.18.11</byte-buddy.version>
   </properties>
-
-  <dependencyManagement>
-    <dependencies>
-      <!-- Override of mockito's bundled byte-buddy (1.17.x tops out at Java 25):
-           1.18.x knows the newer class file versions, so the tests also run on
-           JDKs beyond our release targets. The artifact itself stays on
-           maven.compiler.release regardless of the JDK that builds it. -->
-      <dependency>
-        <groupId>net.bytebuddy</groupId>
-        <artifactId>byte-buddy</artifactId>
-        <version>${byte-buddy.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>net.bytebuddy</groupId>
-        <artifactId>byte-buddy-agent</artifactId>
-        <version>${byte-buddy.version}</version>
-      </dependency>
-    </dependencies>
-  </dependencyManagement>
 
   <dependencies>
     <dependency>
@@ -108,12 +87,6 @@
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>
       <version>${junit-jupiter.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.mockito</groupId>
-      <artifactId>mockito-core</artifactId>
-      <version>${mockito-core.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
