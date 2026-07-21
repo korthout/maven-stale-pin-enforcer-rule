@@ -2,12 +2,16 @@ package io.github.korthout.enforcer.stalepin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import org.apache.maven.execution.DefaultMavenExecutionRequest;
+import org.apache.maven.execution.DefaultMavenExecutionResult;
+import org.apache.maven.execution.MavenSession;
 import org.apache.maven.model.Dependency;
 import org.apache.maven.model.DependencyManagement;
 import org.apache.maven.model.InputLocation;
 import org.apache.maven.model.InputSource;
 import org.apache.maven.model.Model;
 import org.apache.maven.project.MavenProject;
+import org.eclipse.aether.RepositorySystemSession;
 import org.eclipse.aether.artifact.DefaultArtifact;
 import org.eclipse.aether.graph.DefaultDependencyNode;
 import org.eclipse.aether.graph.DependencyNode;
@@ -16,6 +20,19 @@ import org.eclipse.aether.graph.DependencyNode;
 final class Fixtures {
 
   private Fixtures() {}
+
+  /**
+   * A real {@link MavenSession} carrying the given resolver session. Projects are wired up through
+   * {@link MavenSession#setProjects}, which also makes the first project the current one.
+   */
+  @SuppressWarnings("deprecation") // the only constructor usable without booting a Plexus container
+  static MavenSession session(RepositorySystemSession repositorySession) {
+    return new MavenSession(
+        null,
+        repositorySession,
+        new DefaultMavenExecutionRequest(),
+        new DefaultMavenExecutionResult());
+  }
 
   static MavenProject project(String modelId, Dependency... pins) {
     String[] coordinates = modelId.split(":");
